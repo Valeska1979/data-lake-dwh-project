@@ -1,10 +1,26 @@
-# Python
-__pycache__/
-*.pyc
-
-# Environment
+# Python virtual environment
+venv/
 .env
 
-# Mac
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# macOS
 .DS_Store
 
+# Logs
+*.log
+
+# Data files (optional – wenn Daten gross sind)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep

@@ -43,7 +43,7 @@ logger.setLevel(logging.INFO)
 SECRET_NAME  = "dwl/news/gemini"
 BUCKET       = "dwl-datapowerchords-raw"
 S3_PREFIX    = "news/gemini"
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 MAX_EVENTS   = 15
 REGION       = os.environ.get("AWS_REGION", "eu-central-1")
 
@@ -67,18 +67,35 @@ Kuwait, Bahrain, Qatar, Strait of Hormuz, Red Sea, Persian Gulf
 
 CATEGORIES
   sanctions          - Economic/financial pressure tools: sanctions, tariffs, export restrictions.
+                       NOT for military actions even if they have economic effects.
   military_conflict  - Direct use of armed force: strikes, battles, raids, cross-border clashes.
+                       USE THIS for naval blockades, airstrikes, missile attacks.
   security_incidents - Non-traditional security events: cyberattacks, maritime disruptions, \
 tanker seizures, terrorism, sabotage.
   nuclear_diplomacy  - Nuclear programme diplomacy, IAEA inspections, negotiations, escalation signals.
   diplomatic_shifts  - Summits, ceasefires, alliance shifts, normalisation, breakdown of relations.
 
-SEVERITY SCALE (1-5)
-  1 - Routine    : diplomatic statement, minor patrol incident, low-level skirmish
-  2 - Notable    : new sanctions package, small-scale strike, naval warning
-  3 - Significant: confirmed airstrike, tanker seizure, IAEA escalation signal
-  4 - Severe     : major strike campaign, large-scale attack with casualties, Hormuz threat
-  5 - Extreme    : direct Iran-US or Iran-Israel exchange, Hormuz closure, nuclear red line crossed
+SEVERITY SCALE (1-5) — follow this scale strictly, do not underrate
+  1 - Routine    : diplomatic statement, minor patrol incident, low-level skirmish,
+                   routine military posturing, spokesperson comment
+                   EXAMPLE: "Iran foreign minister warns against sanctions"
+  2 - Notable    : new sanctions package, small-scale drone/missile launch, naval warning,
+                   proxy group credible threat, IAEA routine report
+                   EXAMPLE: "US sanctions 3 Iranian oil tankers"
+  3 - Significant: confirmed airstrike with damage, tanker seizure, major sanctions
+                   targeting key sector (oil minister, central bank), IAEA escalation signal
+                   EXAMPLE: "US airstrikes kill IRGC commanders in Syria"
+  4 - Severe     : major strike campaign with significant casualties, coordinated
+                   multi-front attack, direct Hormuz shipping disruption, nuclear
+                   enrichment red line crossed
+                   EXAMPLE: "Houthi missiles sink commercial vessel in Red Sea"
+  5 - Extreme    : direct Iran-US or Iran-Israel military exchange on Iranian soil,
+                   naval blockade of Iranian ports, Hormuz closure or blockade,
+                   nuclear weapon test or assembly confirmed, regional war declaration
+                   EXAMPLE: "US naval blockade of all Iranian ports announced"
+                   EXAMPLE: "Israel strikes Iranian nuclear facilities directly"
+  IMPORTANT: A naval blockade, Hormuz closure, or direct military strike on Iran = severity 5.
+  Do NOT rate these as 3 or 4. When in doubt between two levels, choose the higher one.
 
 DATE CONFIDENCE
   exact       - confirmed date from a dated news source
@@ -103,7 +120,7 @@ OUTPUT FORMAT
     "date_confidence": "<exact|approximate>",
     "actors": ["actor1", "actor2"],
     "location": "<country or region>",
-    "description": "<1-2 sentence factual description>",
+    "description": "<1 sentence max factual description>",
     "source_hint": "<publication or outlet>"
   }}
 ]"""
@@ -168,7 +185,7 @@ def _fetch_events_for_week(api_key: str, week_start: date, week_end: date) -> li
         "tools":    [{"google_search": {}}],
         "generationConfig": {
             "temperature":     0.0,
-            "maxOutputTokens": 2048,
+            "maxOutputTokens": 16000,
         },
     }).encode("utf-8")
 
@@ -198,6 +215,10 @@ def _fetch_events_for_week(api_key: str, week_start: date, week_end: date) -> li
         if raw.startswith("json"):
             raw = raw[4:]
     raw = raw.strip()
+
+    # Replace curly/typographic quotes that break JSON parsing
+    raw = raw.replace('\u201c', '\\"').replace('\u201d', '\\"')
+    raw = raw.replace('\u2018', "\\'").replace('\u2019', "\\'")
 
     events = json.loads(raw)
     logger.info("week=%s->%s raw_events=%d", start_str, end_str, len(events))

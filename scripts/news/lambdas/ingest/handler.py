@@ -1,7 +1,7 @@
 """
 dwl-conflict-ingest
 -------------------
-Uses Gemini 2.0 Flash with Google Search grounding to research and classify
+Uses Gemini 2.5 Flash with Google Search grounding to research and classify
 Iran-region geopolitical conflict events, writing structured results to S3.
 
 No external packages required — uses only Python stdlib (urllib) + boto3
@@ -14,14 +14,14 @@ Date confidence : exact | approximate — approximate excluded downstream in W3
 EventBridge schedule : 0 6 ? * MON *  (06:00 UTC every Monday)
 Backfill             : invoke with {"backfill": true,
                                     "start_date": "2025-01-01",
-                                    "end_date":   "2025-04-30"}
+                                    "end_date":   "2025-12-31"}
                        Split into monthly invocations to avoid timeout.
 Lambda role          : dwl-news-lambda-role
-Secret               : dwl/news/gemini  ->  {"api_key": "..."}
+Secret               : dwl/news/gemini  ->  {"GEMINI_API_KEY": "..."}
 
 Output S3 path
-    s3://dwl-datapowerchords-raw/conflict/gemini/
-        ingest_week=<YYYY-MM-DD>/events.json
+    s3://dwl-datapowerchords-raw/news/gemini/
+        ingest_date=<YYYY-MM-DD>/events.json
 """
 
 import hashlib
@@ -45,7 +45,8 @@ BUCKET       = "dwl-datapowerchords-raw"
 S3_PREFIX    = "news/gemini"
 GEMINI_MODEL = "gemini-2.5-flash"
 MAX_EVENTS   = 15
-REGION       = os.environ.get("AWS_REGION", "eu-central-1")
+SNS_TOPIC    = "arn:aws:sns:us-east-1:472069242258:dwl-news-alerts"
+REGION       = os.environ.get("AWS_REGION", "us-east-1")
 
 VALID_CATEGORIES = {
     "sanctions",
@@ -128,6 +129,7 @@ OUTPUT FORMAT
 # ── clients ───────────────────────────────────────────────────────────────────
 _secrets_client = None
 _s3_client      = None
+_sns_client     = None
 _api_key        = None
 
 
@@ -145,13 +147,38 @@ def _get_s3_client():
     return _s3_client
 
 
+def _get_sns_client():
+    global _sns_client
+    if _sns_client is None:
+        _sns_client = boto3.client("sns", region_name=REGION)
+    return _sns_client
+
+
 def _get_api_key() -> str:
     global _api_key
     if _api_key is None:
-        secret  = _get_secrets_client().get_secret_value(SecretId=SECRET_NAME)
+        secret   = _get_secrets_client().get_secret_value(SecretId=SECRET_NAME)
         _api_key = json.loads(secret["SecretString"])["GEMINI_API_KEY"]
         logger.info("Gemini API key loaded from Secrets Manager.")
     return _api_key
+
+
+def _alert_failures(results: list, backfill: bool):
+    """Publish SNS alert if any week failed or returned empty response."""
+    failed = [r for r in results if r["status"] != "ok"]
+    if not failed:
+        return
+    mode    = "backfill" if backfill else "routine"
+    message = f"dwl-conflict-ingest [{mode}] — {len(failed)}/{len(results)} weeks failed:\n\n"
+    for r in failed:
+        message += f"  week={r['week']}  status={r['status']}\n"
+    message += "\nRerun failed weeks manually via Lambda test tab."
+    _get_sns_client().publish(
+        TopicArn = SNS_TOPIC,
+        Subject  = f"[DWL] conflict-ingest: {len(failed)} week(s) failed",
+        Message  = message,
+    )
+    logger.warning("SNS alert sent for %d failed weeks.", len(failed))
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -170,11 +197,11 @@ def _week_ranges(start: date, end: date):
 
 
 def _fetch_events_for_week(api_key: str, week_start: date, week_end: date) -> list:
-    """Call Gemini 2.0 Flash via REST with Google Search grounding."""
+    """Call Gemini 2.5 Flash via REST with Google Search grounding."""
     start_str = week_start.isoformat()
     end_str   = week_end.isoformat()
 
-    prompt  = PROMPT_TEMPLATE.format(
+    prompt = PROMPT_TEMPLATE.format(
         start_date=start_str,
         end_date=end_str,
         max_events=MAX_EVENTS,
@@ -247,7 +274,6 @@ def _write_to_s3_by_date(events: list, week_start: date, week_end: date) -> list
     Writes an empty file for dates in the week with no events.
     Returns list of S3 keys written.
     """
-    # Group events by event_date
     from collections import defaultdict
     by_date = defaultdict(list)
     for e in events:
@@ -321,9 +347,9 @@ def handler(event: dict, context) -> dict:
             keys      = _write_to_s3_by_date(validated, week_start, week_end)
 
             results.append({
-                "week":        week_start.isoformat(),
-                "status":      "ok",
-                "event_count": len(validated),
+                "week":          week_start.isoformat(),
+                "status":        "ok",
+                "event_count":   len(validated),
                 "files_written": len(keys),
             })
 
@@ -350,21 +376,24 @@ def handler(event: dict, context) -> dict:
             else:
                 logger.error("Gemini HTTP error for week %s: %s", week_start, exc)
                 results.append({"week": week_start.isoformat(), "status": "http_error", "error": str(exc)})
+
         except json.JSONDecodeError as exc:
             logger.error("JSON parse error for week %s — Gemini returned non-JSON, storing empty week: %s", week_start, exc)
-            validated = []
-            keys      = _write_to_s3_by_date(validated, week_start, week_end)
+            keys = _write_to_s3_by_date([], week_start, week_end)
             results.append({
                 "week":          week_start.isoformat(),
                 "status":        "empty_response",
                 "event_count":   0,
                 "files_written": len(keys),
             })
+
         except Exception as exc:
             logger.exception("Unexpected error for week %s", week_start)
             results.append({"week": week_start.isoformat(), "status": "error", "error": str(exc)})
 
     ok_count = sum(1 for r in results if r["status"] == "ok")
     logger.info("Done. %d/%d weeks succeeded.", ok_count, len(results))
+
+    _alert_failures(results, event.get("backfill", False))
 
     return {"statusCode": 200, "results": results}

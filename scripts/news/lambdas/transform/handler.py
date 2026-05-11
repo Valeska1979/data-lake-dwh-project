@@ -136,7 +136,7 @@ def _alert_failures(failed: list, layer: str):
 
 def _load_bronze_day(target_date: date) -> list:
     """Load bronze events for a single day. Returns [] if not found."""
-    key = f"{BRONZE_PREFIX}/ingest_date={target_date.isoformat()}/events.json"
+    key = f"{BRONZE_PREFIX}/event_date={target_date.isoformat()}/events.json"
     try:
         obj  = _get_s3_client().get_object(Bucket=BRONZE_BUCKET, Key=key)
         data = json.loads(obj["Body"].read())

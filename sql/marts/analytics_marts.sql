@@ -71,13 +71,18 @@ WHERE d.full_date BETWEEN '2025-01-01' AND CURRENT_DATE;
 
 CREATE OR REPLACE VIEW analytics.mart_event_study AS
 WITH trading_days AS (
-    -- get stock returns with next-day and 2-day lag via LEAD
     SELECT
         sp.date_sk,
         d.full_date                                             AS trade_date,
         t.ticker,
         t.company_name,
         sp.close                                                AS stock_close,
+        LAG(sp.log_return, 2) OVER (
+            PARTITION BY t.ticker ORDER BY d.full_date
+        )                                                       AS stock_return_minus2d,
+        LAG(sp.log_return, 1) OVER (
+            PARTITION BY t.ticker ORDER BY d.full_date
+        )                                                       AS stock_return_minus1d,
         sp.log_return                                           AS stock_return_0d,
         LEAD(sp.log_return, 1) OVER (
             PARTITION BY t.ticker ORDER BY d.full_date
@@ -90,11 +95,18 @@ WITH trading_days AS (
     JOIN stocks.dim_ticker  t ON t.ticker_sk = sp.ticker_sk
 ),
 oil_days AS (
-    -- get oil prices with next-day pct change via LEAD
     SELECT
         d.full_date                                             AS trade_date,
         oil_type,
         price,
+        ROUND(
+            (price - LAG(price, 2) OVER (PARTITION BY oil_type ORDER BY d.full_date))
+            / NULLIF(LAG(price, 2) OVER (PARTITION BY oil_type ORDER BY d.full_date), 0) * 100, 4
+        )                                                       AS price_pct_change_minus2d,
+        ROUND(
+            (price - LAG(price, 1) OVER (PARTITION BY oil_type ORDER BY d.full_date))
+            / NULLIF(LAG(price, 1) OVER (PARTITION BY oil_type ORDER BY d.full_date), 0) * 100, 4
+        )                                                       AS price_pct_change_minus1d,
         ROUND(
             (LEAD(price, 1) OVER (PARTITION BY oil_type ORDER BY d.full_date) - price)
             / NULLIF(price, 0) * 100, 4
@@ -107,7 +119,6 @@ oil_days AS (
     JOIN analytics.dim_date d ON d.date_sk = op.date_sk
 )
 SELECT
-    -- event
     c.event_date,
     c.max_severity,
     c.top_event_summary,
@@ -119,34 +130,30 @@ SELECT
     c.security_count,
     c.nuclear_count,
     c.diplomatic_count,
-
-    -- stock
     td.ticker,
     td.company_name,
     td.stock_close,
+    td.stock_return_minus2d,
+    td.stock_return_minus1d,
     td.stock_return_0d,
     td.stock_return_1d,
     td.stock_return_2d,
-
-    -- oil brent
     brent.price                         AS brent_price,
+    brent.price_pct_change_minus2d      AS brent_pct_change_minus2d,
+    brent.price_pct_change_minus1d      AS brent_pct_change_minus1d,
     brent.price_pct_change_1d           AS brent_pct_change_1d,
     brent.price_pct_change_2d           AS brent_pct_change_2d,
-
-    -- oil wti
     wti.price                           AS wti_price,
+    wti.price_pct_change_minus2d        AS wti_pct_change_minus2d,
+    wti.price_pct_change_minus1d        AS wti_pct_change_minus1d,
     wti.price_pct_change_1d             AS wti_pct_change_1d,
     wti.price_pct_change_2d             AS wti_pct_change_2d
-
 FROM news_events.fact_conflict_daily c
-JOIN trading_days td    ON td.trade_date = c.event_date
+JOIN trading_days td     ON td.trade_date = c.event_date
 LEFT JOIN oil_days brent ON brent.trade_date = c.event_date AND brent.oil_type = 'Brent'
 LEFT JOIN oil_days wti   ON wti.trade_date  = c.event_date AND wti.oil_type  = 'WTI'
-
 WHERE c.max_severity >= 3
-
 ORDER BY c.event_date, td.ticker;
-
 
 -- ── mart 3: category impact ───────────────────────────────────
 -- One row per event category per ticker.

@@ -155,12 +155,12 @@
 % ----- Project metadata (fill in before submission) -----
 \newcommand{\projecttitle}{Geopolitics Meets Oil Markets: A Data Lake Approach to Analyzing Conflict-Driven Price Movements}
 \newcommand{\groupname}{DataPowerChords}
-\newcommand{\studentone}{Student~1 Name, Matriculation~\#, student1@stud.hslu.ch}
-\newcommand{\studenttwo}{Student~2 Name, Matriculation~\#, student2@stud.hslu.ch}
-\newcommand{\studentthree}{Student~3 Name, Matriculation~\#, student3@stud.hslu.ch}
-\newcommand{\examinerone}{First reviewer's title and name}
-\newcommand{\examinertwo}{Second reviewer's title and name}
-\newcommand{\examinerthree}{Third reviewer's title and name}
+\newcommand{\studentone}{S~1 Kethrin Heinze, Matriculation~\#18-678-680, kethrin.heinze@stud.hslu.ch}
+\newcommand{\studenttwo}{S~2 Valeska Blank, Matriculation~\#01-297-738, valeska.blank@stud.hslu.ch}
+\newcommand{\studentthree}{S~3 Simon Ziegs, Matriculation~\#18-731-588, simon.ziegs@stud.hslu.ch}
+\newcommand{\examinerone}{PD Dr. Luis Terán}
+\newcommand{\examinertwo}{José Mancera}
+\newcommand{\examinerthree}{Dr. Jhonny Pincay}
 \newcommand{\githuburl}{\url{https://github.com/Valeska1979/data-lake-dwh-project}}
 \newcommand{\vizurl}{\url{https://public.tableau.com/...}}
 \newcommand{\submissiondate}{Luzern, 7 June 2026}
@@ -183,7 +183,7 @@
 
   \begin{center}
   \begin{tabular}{r l}
-    \textbf{Group Name:}  & \groupname \\[1em]
+    \textbf{Group Name:}  & \groupname \\
     \textbf{Students:}    & \studentone \\
                           & \studenttwo \\
                           & \studentthree \\[1em]
@@ -225,31 +225,24 @@
 % TODO S2/S3: Topic intro — Middle East conflict (Iran focus) impact on oil
 % markets and oil-company stocks, with news sentiment as a predictive overlay.
 
-The global oil market is highly sensitive to geopolitical tensions, and
-few geographies have as sustained an impact on price dynamics as the
-Middle East and in particular Iran. This project investigates the extent
-to which conflict events involving Iran propagate into observable
-changes in oil prices, oil-company stock returns, and the volatility of
-both. The intended audience is geopolitical risk analysts and commodity
-traders who need to understand how escalations in the region
-(sanctions, military engagements, Strait of Hormuz incidents, nuclear
-negotiations) translate into oil market movements in near real time.
+Geopolitical tensions in the Middle East continue to play a critical role in shaping global financial markets. In the last months, the impact of the Iran conflict on oil prices and stock markets has become a persistent theme in international news coverage. Recent developments, including the escalation of the Iran war in March and April 2026, have been associated with sharp reactions in crude oil markets, renewed volatility in equity markets, and major concerns about supply disruptions through the Strait of Hormuz.  
 
-\lipsum[1-2]
+Despite these visible market reactions, the relationship between geopolitical events and financial market dynamics remains complex and difficult to quantify. While it is generally assumed that conflicts and escalations lead to increases in oil prices, the extent to which equity markets, particularly major oil and energy companies, respond in a similar or divergent way is less clear. Additionally, the role of news sentiment and different types of geopolitical events in driving market behavior is not fully understood.  
+
+This project addresses this challenge by designing and implementing a cloud-based data pipeline to analyze the impact of Middle Eastern geopolitical events on both oil prices and energy sector stocks. The pipeline integrates multiple data sources, including oil price data (Brent and WTI), stock price data of major oil and energy companies, real-time news data with sentiment information, and AI-generated classifications of geopolitical events. Using a data lake and data warehouse architecture, the project enables the structured collection, storage, and analysis of heterogeneous data in a scalable and reproducible way. 
+
+The relevance of this topic lies in both its economic importance and its technical implications. From a business perspective, understanding how geopolitical events influence oil prices and related stock markets is highly valuable for commodity traders, financial analysts, and geopolitical risk experts. From a technical perspective, the project demonstrates how modern cloud technologies can be used to build an end-to-end data pipeline that supports data ingestion, enrichment, and analysis across multiple data domains. By combining real-world events with structured market data, the project provides a practical framework for analyzing complex relationships in dynamic market environments.
 
 \subsection{Motivation (S2 + S3)}
 \label{sec:motivation}
 
 % TODO S2/S3: Motivation — why this project, why now.
 
-The 2024--2025 Iran-Israel escalation cycle has renewed analytical
-interest in quantifying how specific classes of geopolitical events
-transmit into market prices. This project contributes a reproducible,
-cloud-native data pipeline that joins high-frequency stock data,
-authoritative oil-price series, and classified news events to enable
-structured analysis across event types.
+This project is motivated by the strong and ongoing influence of geopolitical developments in the Middle East on global financial markets. Events involving Iran, such as sanctions, military escalations, uncertainty and rapidly changing conditions regarding the status of the Strait of Hormuz, or diplomatic negotiations, are regularly associated with sudden changes not only in oil prices but also in the stock prices of major oil and energy companies. Given the economic importance of both commodity markets and equity markets, understanding these relationships is of high relevance for market participants, analysts, and even consumers, as fluctuations in oil prices are directly reflected in retail fuel prices.  
 
-\lipsum[3]
+In addition to its economic significance, the topic provides a suitable use case for applying concepts from the Data Lakes and Data Warehouses module. The integration of heterogeneous data sources, including oil price data, stock market data, news data with sentiment information, and AI-generated event classifications, enables the analysis of complex relationships between geopolitical events and different segments of financial markets. Such a setup reflects real-world analytical challenges, where data is distributed across multiple sources, formats, and domains. 
+
+Furthermore, the project enables the practical implementation of a cloud-based data pipeline using modern technologies. By combining data ingestion, storage, transformation, and analysis within a unified architecture, it is demonstrated how scalable and automated systems can be built to support data-driven insights across multiple asset classes. This makes the topic not only relevant from a business perspective but also valuable from a technical and educational standpoint. 
 
 \subsection{Problem Definition and Goals}
 \label{sec:problem_goals}
@@ -349,7 +342,7 @@ path to a paid official feed.
 
 \paragraph{Oil-price data (S2, EIA API).}
 % TODO S2
-\lipsum[4]
+Oil price data is sourced from the U.S. Energy Information Administration (EIA) API, which provides daily observations for the Brent and WTI benchmarks in a structured and machine-readable format. These benchmarks are widely recognised indicators of global oil market developments and are particularly relevant for analysing the impact of geopolitical events on energy markets. As the project aims to investigate potential relationships between Middle East conflicts and oil price movements, the data directly supports the use case by providing reliable and timely market information. Furthermore, the API enables automated data retrieval and seamless integration into a cloud-based data lake architecture, supporting scalable ingestion, storage, transformation, and downstream analytics.
 
 \paragraph{News and classified events (S3, Gemini API).}
 The original design used World News API for article retrieval and
@@ -401,7 +394,7 @@ path for sub-second Tableau interactions).
     Glue~Data~Catalog (right sidebar) is the metastore that makes
     every S3 zone queryable. The dual Athena and RDS serving path
     at the bottom is the project's solution for keeping the lake
-    queryable from Tableau before the warehouse load completes
+    queryable before the warehouse load completes
     and for the warehouse to remain the steady-state serving layer
     thereafter.}
   \label{fig:architecture}
@@ -419,7 +412,7 @@ path for sub-second Tableau interactions).
         \texttt{dwl-postgres16-forcessl} that sets
         \texttt{rds.force\_ssl=1}, causing the broker to reject any
         non-TLS connection attempt.
-  \item AWS Lambda for stateless compute (Python~3.11 runtime,
+  \item AWS Lambda for serverless compute (Python~3.11 runtime,
         x86\_64 architecture). Domain-specific dependencies are
         bundled as per-domain Lambda layers rather than a single
         shared dependency layer. For the stocks domain this comprises
@@ -655,21 +648,26 @@ handler and would not propagate downstream.
 
 \paragraph{Source type.} Dynamic REST API (EIA v2), JSON response.
 
-\paragraph{Endpoints.}
-% TODO S2
-\lipsum[6]
+\paragraph{API invocation.}
+Data is retrieved from the EIA v2 API using HTTPS requests. The project queries the Brent and WTI crude oil benchmark series and receives daily price observations in JSON format. The response contains the observation date, benchmark identifier, and price value.
 
 \paragraph{Authentication.}
-% TODO S2
-\lipsum[7]
+API access requires an EIA API key. The key is stored securely in AWS Secrets Manager and retrieved by the ingestion Lambda at runtime.
 
 \paragraph{Rate limits.}
-% TODO S2
-\lipsum[8]
+The EIA API is designed for public access and supports the low request volume required by this project. The pipeline performs only a small number of requests per day, remaining well below published usage limits.
+
+\paragraph{Pagination.}
+Not applicable. The requested historical data range is returned within a single API response and does not require pagination handling.
+
+\paragraph{Implementation.}
+Oil-price ingestion is implemented as an AWS Lambda function \texttt{dwl-oil-ingest} that retrieves Brent and WTI benchmark data from the EIA API and stores the raw JSON responses in the bronze layer of the data lake. The data is subsequently transformed into curated Parquet datasets in the silver layer and integrated into the gold-layer fact table \texttt{oil.fact\_prices}. Daily execution is orchestrated through Amazon EventBridge, enabling automated ingestion and updates without manual intervention. The resulting datasets are registered in the AWS Glue Data Catalog and are accessible through Amazon Athena and the downstream data warehouse.
 
 \paragraph{Justification of use.}
-% TODO S2
-\lipsum[9]
+Brent and WTI are the most widely used global oil-price benchmarks and are therefore highly relevant for analysing the impact of geopolitical events on energy markets. The EIA API was selected because it provides reliable, authoritative, machine-readable data from a governmental source and integrates well into an automated cloud-based data pipeline.
+
+\paragraph{Limitations.}
+The dataset contains daily observations only. Consequently, intraday market reactions and short-term price volatility cannot be captured.
 
 \subsubsection{Gemini Conflict Event Source (S3)}
 \label{sec:news_source}
@@ -819,8 +817,8 @@ ultimately land in an SNS topic and an SQS dead-letter queue.
 
 
 \paragraph{Tools and technologies.}
-AWS Lambda (Python 3.12), EventBridge, Step Functions, S3, Secrets
-Manager, SNS, SQS, Glue Data Catalog.
+AWS Lambda (Python 3.12), EventBridge, S3, Secrets
+Manager, SNS, Glue Data Catalog.
 
 \subsection{Data Capture \& Handling}
 \label{sec:data_capture}
@@ -831,8 +829,7 @@ upstream changes tolerated, destructive changes surface as SNS
 alerts.
 
 \paragraph{Retries and error handling.}
-Step Functions Retry blocks per state handle transient errors.
-Non-retryable errors are caught and routed to SNS for follow-up.
+Transient failures are handled through AWS Lambda retry mechanisms and EventBridge re-invocation policies. Execution logs are written to Amazon CloudWatch, enabling monitoring and troubleshooting. Persistent failures are routed to an SNS notification topic for operational follow-up.
 
 \paragraph{Duplicates and late-arriving data.}
 All load-to-RDS operations use \texttt{INSERT \dots ON CONFLICT \dots
@@ -1061,8 +1058,21 @@ crawler group, and the RDS Postgres log group.
 
 \subsubsection{Oil Schema (S2)}
 \label{sec:oil_schema}
-% TODO S2
-\lipsum[12-13]
+The table \texttt{oil.fact\_prices} contains one record per oil type and trading day. The \texttt{oil\_type} attribute distinguishes between Brent and WTI prices, while \texttt{date\_sk} provides a consistent join key to the shared \texttt{analytics.dim\_date} dimension.
+
+\begin{lstlisting}[language=SQL,caption={Oil fact table.},label={lst:oil_schema}]
+CREATE TABLE oil.fact_prices (
+  price_sk BIGINT PRIMARY KEY,
+  date_sk INTEGER NOT NULL REFERENCES analytics.dim_date(date_sk),
+  trade_date DATE NOT NULL,
+  price NUMERIC,
+  oil_type VARCHAR,
+  ingest_timestamp TIMESTAMP,
+  source VARCHAR
+);
+\end{lstlisting}
+
+The grain of the table is one observation per oil benchmark and trading day. The \texttt{oil\_type} attribute distinguishes between Brent and WTI prices, while \texttt{date\_sk} provides a consistent join key to the shared \texttt{analytics.dim\_date} dimension. This schema supports historical trend analysis and enables direct comparison of oil prices with stock market and conflict-event data.
 
 \subsubsection{News Events Schema (S3)}
 \label{sec:news_schema}
@@ -1075,12 +1085,12 @@ Its fields are \texttt{event\_date}, \texttt{event\_category},
 \texttt{date\_confidence}, \texttt{actors}, \texttt{location},
 \texttt{description}, \texttt{source\_hint}, \texttt{url\_hash}, and
 \texttt{ingest\_period}. The silver path is
-\path{s3://dwl-datapowerchords-curated/news/events_parquet/year=<YYYY>/month=<MM>/data.parquet}.
+\path{s3://dwl-datapowerchords-curated/news/events_parquet/year=\textless{}YYYY\textgreater{}/month=\textless{}MM\textgreater{}/data.parquet}.
 
 Gold changes the grain to one row per calendar day for joining with
 oil, stock, and date dimensions. It excludes approximate-date records
 and severity-1 routine records, then writes daily aggregates to
-\path{s3://dwl-datapowerchords-gold/news/fact_conflict_daily/event_date=<YYYY-MM-DD>/data.parquet}.
+\path{s3://dwl-datapowerchords-gold/news/fact_conflict_daily/event_date=\textless{}YYYY-MM-DD\textgreater{}/data.parquet}.
 The gold schema contains the daily event count, maximum and average
 severity, conflict flag, top event summary and category, deterministic
 \texttt{category\_sk} and \texttt{severity\_sk}, per-category counts
@@ -1216,8 +1226,13 @@ project surfaces. It is discussed further in the Conclusions
 
 \subsubsection{Oil (S2)}
 \label{sec:oil_transform}
-% TODO S2
-\lipsum[16-17]
+The oil transform Lambda \texttt{dwl-oil-transform} reads the raw JSON responses retrieved from the EIA API and converts them into structured datasets for the silver and gold layers. The transformation process standardises the schema across Brent and WTI observations, converts date fields into a consistent format, and extracts the benchmark identifier and daily price values required for downstream analysis.
+
+For the silver layer, the transformed data is stored as Parquet files partitioned by year and month. This representation preserves the full historical dataset while providing an efficient format for querying and analytical processing. The silver layer serves as the curated representation of the original EIA data and remains closely aligned with the source records.
+
+For the gold layer, the data is transformed into the final analytical schema used by the warehouse and dashboards. Each record represents a single benchmark price observation for a given trading day. Additional attributes such as \texttt{date\_sk} are generated to support integration with the shared \texttt{analytics.dim\_date} dimension and enable cross-domain analysis with stock-market and conflict-event datasets.
+
+The transformation process is implemented as an AWS Lambda function and is triggered automatically after successful ingestion. The resulting Parquet datasets are written to the curated and gold S3 buckets and registered in the AWS Glue Data Catalog. This architecture enables efficient querying through Amazon Athena and supports the subsequent warehouse loading process described in Section~6.
 
 \subsubsection{News and Events (S3)}
 \label{sec:news_transform}

@@ -260,23 +260,19 @@ structured analysis across event types.
 The data lake implementation answers the following research questions:
 
 \begin{enumerate}[label=\textbf{Q\arabic*.}, leftmargin=*]
-  \item How do conflict-escalation events involving Iran correlate with
-        short-term WTI and Brent price spikes?
-  \item Do stock prices of the top oil companies move in sync during
-        Iran conflict events, or do they diverge across subsectors
-        (majors, E\&P, refiners, services, tankers)?
-  \item Can conflict-event intensity around Iran and the Middle East
-        identify oil-price volatility windows?
-  \item Which event types (sanctions, military strikes, nuclear
-        negotiations, Strait of Hormuz incidents) have the strongest
-        and most persistent price impact?
+  \item How do Brent and WTI oil prices behave during Iran-region
+        conflict periods, and do they move together or diverge?
+  \item Do individual oil-sector stocks react differently to conflict
+        periods, and which stocks consistently gain or lose?
+  \item Which specific conflict events had the largest observable
+        impact on oil prices and stock returns?
 \end{enumerate}
 
 % TODO S1: methodology paragraph (3–5 sentences) — cross-source
 % event-study design that ties stocks, oil, and news together.
 
 \paragraph{Methodology.}
-The four research questions are answered through an event-study
+The three research questions are answered through an event-study
 design [6, 7] that aligns three
 independent data sources on a shared trading calendar. Stock-price
 data is sourced from Yahoo Finance via the \texttt{yfinance} Python
@@ -290,8 +286,8 @@ Gemini-based ingestion pipeline using Google Search grounding and structured
 LLM classification. The pipeline extracts and classifies Iran-region
 geopolitical events into a five-category taxonomy. A conformed \texttt{dim\_date} table joins the
 three domains on shared trading days, which is the precondition for
-questions such as how XLE moves in the five trading days following
-each Hormuz incident.
+aligning oil prices and individual stock returns with the conflict
+periods identified by the pipeline.
 
 \subsubsection{Business Intelligence Questions}
 \label{sec:bi_questions}
@@ -300,15 +296,12 @@ The data warehouse implementation answers the following business
 intelligence questions:
 
 \begin{enumerate}[label=\textbf{BI\arabic*.}, leftmargin=*]
-  \item What is the typical magnitude and duration of WTI/Brent price
-        moves in the trading days following each event category?
-  \item Which oil-company subsectors are most reactive to a given event
-        category, measured by idiosyncratic return?
-  \item How does rolling 30-day conflict intensity correlate with
-        realised and idiosyncratic volatility of the energy sector ETF
-        (XLE)?
-  \item Which individual events in the analysis window had the largest
-        measurable price impact across both oil and equity markets?
+  \item How much do Brent and WTI prices move during conflict periods,
+        and does the magnitude differ between event categories?
+  \item Which individual stocks show the strongest and most consistent
+        reaction to conflict periods?
+  \item During which specific conflict periods were oil-price and
+        stock-return movements largest?
 \end{enumerate}
 
 \newpage
@@ -431,13 +424,13 @@ path for sub-second Tableau interactions).
         layers simultaneously, which informs the per-stage Lambda
         decomposition described in Section~3.
   \item Amazon EventBridge for daily scheduling.
-  \item AWS Step Functions for orchestration with retries and DLQ.
+  \item AWS Step Functions for orchestration with retries.
   \item AWS Glue Data Catalog (database \texttt{dwl\_datapowerchords})
         for metadata across all 16 bronze/silver/gold tables.
   \item AWS Secrets Manager for API keys and DB credentials.
   \item Amazon SNS for alerts (one topic per domain:
         \texttt{dwl-stocks-alerts}, \texttt{dwl-oil-alerts},
-        \texttt{dwl-news-alerts}); Amazon SQS as DLQ.
+        \texttt{dwl-news-alerts}).
 \end{itemize}
 
 \paragraph{Storage Layers and Zones.}
@@ -569,13 +562,6 @@ day. No client-side back-off logic is therefore implemented in the
 ingest handler; transient network-level failures are handled by
 yfinance's internal HTTP client (\texttt{curl\_cffi}).
 
-\paragraph{Pagination.}
-Not applicable. A single library call returns the complete date range
-specified by the \texttt{start} parameter. For the project's analysis
-window of 1~January~2025 to the present, the response contains
-approximately 333~records per ticker, well within Lambda memory and
-S3 payload bounds.
-
 \paragraph{Implementation.}
 The ingest function \texttt{dwl-stocks-ingest} is implemented as a
 single Python~3.11 AWS~Lambda (architecture x86\_64,
@@ -698,6 +684,26 @@ scale, where 1 is routine and 5 represents extreme regional-war,
 Hormuz-closure, direct Iran--US/Iran--Israel, or nuclear-escalation
 events.
 
+\paragraph{Authentication.}
+Requests are authenticated with a Gemini API key stored in AWS Secrets
+Manager under the secret \texttt{dwl/news/gemini}. The ingest Lambda
+retrieves the key at cold-start time via \texttt{secretsmanager:GetSecretValue}
+and reuses the cached value for all weekly calls within the same
+invocation, eliminating repeated Secrets Manager round-trips.
+
+\paragraph{Rate limits.}
+The Gemini 2.5 Flash free tier permits fifteen requests per minute.
+The ingest Lambda processes one weekly chunk per request and inserts a
+five-second sleep between successive calls to stay within this
+threshold. A single retry is attempted on an HTTP~429 response after a
+thirty-second back-off; if the retry also fails the week is recorded as
+an empty partition and an SNS alert is published for manual follow-up.
+
+\paragraph{Pagination.}
+Not applicable. Each API call covers a bounded seven-day window and
+returns at most fifteen events in a single response, well within the
+model's output token limit.
+
 \paragraph{Justification of use.}
 The Gemini-only design was selected after the planned World News API
 source proved unsuitable for historical backfill on the free tier.
@@ -729,7 +735,7 @@ All three domains use the same orchestration pattern: an EventBridge
 rule triggers a Step Functions state machine that invokes ingest,
 transform, load, and quality-check Lambdas in sequence. Retries are
 three attempts with exponential backoff (2s, 4s, 8s); failures
-ultimately land in an SNS topic and an SQS dead-letter queue.
+ultimately trigger an SNS alert for human follow-up.
 
 \begin{figure}[H]
   \centering
@@ -792,7 +798,7 @@ ultimately land in an SNS topic and an SQS dead-letter queue.
 
     % Support services
     \node[aws, below=18mm of ingest] (secrets) {Secrets Manager\\API keys where required};
-    \node[aws, below=18mm of apis] (alerts) {SNS alerts\\+ SQS DLQ};
+    \node[aws, below=18mm of apis] (alerts) {SNS alerts};
 
     % Arrows
     \draw[arrow] (eventbridge) -- (ingest);
@@ -820,7 +826,7 @@ ultimately land in an SNS topic and an SQS dead-letter queue.
 
 \paragraph{Tools and technologies.}
 AWS Lambda (Python 3.12), EventBridge, Step Functions, S3, Secrets
-Manager, SNS, SQS, Glue Data Catalog.
+Manager, SNS, Glue Data Catalog.
 
 \subsection{Data Capture \& Handling}
 \label{sec:data_capture}
@@ -925,7 +931,7 @@ files.
 Gold facts are partitioned by the analytical time key
 (\texttt{trade\_date} for stocks, \texttt{quote\_date} for oil,
 \texttt{event\_date} for news), which gives Athena single-partition
-reads for the date-range queries that drive the Q1 to Q4 dashboards.
+reads for the date-range queries that drive the Q1 to Q3 dashboards.
 Silver is partitioned by entity \emph{and} time decomposition. For
 stocks the partition path is
 \texttt{symbol=<T>/year=<YYYY>/month=<MM>/}, so that routine
@@ -1067,26 +1073,44 @@ crawler group, and the RDS Postgres log group.
 \subsubsection{News Events Schema (S3)}
 \label{sec:news_schema}
 
-The news domain uses two lake schemas. Silver keeps one row per
-normalised Gemini event and intentionally applies no analytical
-filtering, so the curated layer remains auditable against the raw JSON.
-Its fields are \texttt{event\_date}, \texttt{event\_category},
-\texttt{event\_summary}, \texttt{severity},
-\texttt{date\_confidence}, \texttt{actors}, \texttt{location},
-\texttt{description}, \texttt{source\_hint}, \texttt{url\_hash}, and
-\texttt{ingest\_period}. The silver path is
-\path{s3://dwl-datapowerchords-curated/news/events_parquet/year=<YYYY>/month=<MM>/data.parquet}.
+The \texttt{news\_events} schema contains one fact table and two small
+dimensions. The fact table \texttt{news\_events.fact\_conflict\_daily}
+has a grain of one row per calendar day. Its primary idempotency key is
+\texttt{event\_date}; \texttt{date\_sk} is a foreign key to the
+conformed \texttt{analytics.dim\_date} dimension shared with the stocks
+and oil domains. Analytical columns record the daily event count,
+maximum and average severity, a conflict presence flag, the top event
+summary and category, per-category event counts and maximum severities
+across all five taxonomy categories, a \texttt{hormuz\_flag} for
+Strait-of-Hormuz-related events, and an \texttt{ingest\_timestamp}.
+Two surrogate foreign keys, \texttt{category\_sk} and
+\texttt{severity\_sk}, link to the dimension tables described below and
+support star-schema joins in the cross-domain marts.
 
-Gold changes the grain to one row per calendar day for joining with
-oil, stock, and date dimensions. It excludes approximate-date records
-and severity-1 routine records, then writes daily aggregates to
-\path{s3://dwl-datapowerchords-gold/news/fact_conflict_daily/event_date=<YYYY-MM-DD>/data.parquet}.
-The gold schema contains the daily event count, maximum and average
-severity, conflict flag, top event summary and category, deterministic
-\texttt{category\_sk} and \texttt{severity\_sk}, per-category counts
-and maximum severities, a \texttt{hormuz\_flag}, and
-\texttt{approximate\_count}. This produces the daily conflict-intensity
-fact used by the Q1, Q3, and Q4 dashboards.
+\texttt{dim\_event\_category} has five static rows mapping the
+taxonomy codes (\texttt{military\_conflict}, \texttt{sanctions},
+\texttt{security\_incidents}, \texttt{nuclear\_diplomacy},
+\texttt{diplomatic\_shifts}) to integer surrogate keys 1--5.
+The key assignment matches the \texttt{CATEGORY\_SK\_MAP} baked into
+the transform Lambda, so gold Parquet \texttt{category\_sk} values
+resolve correctly against the dimension without any runtime lookup.
+\texttt{dim\_severity} has five rows mapping the 1--5 severity scale
+to business labels from Routine through Extreme, providing a
+human-readable join target for Tableau filters and tooltip labels.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/news_er.PNG}
+  \caption{Entity-relationship diagram for the \texttt{news\_events} star
+    schema, introspected from the live \texttt{dwl-shared-pg} RDS
+    instance. The central fact \texttt{news\_events.fact\_conflict\_daily}
+    carries one row per calendar day and three foreign keys:
+    \texttt{date\_sk} to the conformed \texttt{analytics.dim\_date}
+    dimension, \texttt{category\_sk} to the five-row
+    \texttt{dim\_event\_category} dimension, and \texttt{severity\_sk}
+    to the five-row \texttt{dim\_severity} dimension.}
+  \label{fig:news_er}
+\end{figure}
 
 \subsubsection{Analytics Schema (S1 + S3)}
 \label{sec:analytics_schema}
@@ -1245,7 +1269,7 @@ The gold daily Parquet output is the handoff point to the warehouse load stage. 
 
 \begin{figure}[H]
   \centering
-  \resizebox{\textwidth}{!}{%
+  \resizebox{0.75\textwidth}{!}{%
   \begin{tikzpicture}[
     font=\sffamily\small,
     node distance=12mm and 14mm,
@@ -1416,7 +1440,7 @@ and the \texttt{analytics} schema hosts the conformed
     \texttt{news\_events}& \texttt{dim\_severity}  & 1--5 severity scale \\
     \texttt{analytics}   & \texttt{dim\_date}      & per calendar date 2025--2030 \\
     \texttt{analytics}   & \texttt{mart\_daily\_signals}     & calendar day $\times$ ticker, raw joined oil/stock/conflict signals \\
-    \texttt{analytics}   & \texttt{mart\_conflict\_sessions} & calendar day $\times$ ticker, session-enriched with forward-filled oil prices \\
+    \texttt{analytics}   & \texttt{mart\_conflict\_sessions} & calendar day $\times$ ticker, severity-5 session windows (±3 days), forward-filled oil prices \\
     \texttt{analytics}   & \texttt{mart\_category\_impact}   & top event category $\times$ ticker, aggregated return statistics \\
     \bottomrule
   \end{tabularx}
@@ -1618,21 +1642,30 @@ measures from \texttt{news\_events.fact\_conflict\_daily}. It is the
 base source for overview charts because every measure shares the same
 calendar grain.
 
-The event-window mart reshapes the same data around conflict days. For
-each relevant event date it stores market movement before and after
-the event, for example same-day, one-day, three-day, and five-day
-post-event return windows. This mart supports the Q1 dashboard because
-it turns a raw time series into event-study observations.
+The conflict-sessions mart shares the same calendar-day-by-ticker grain
+but enriches each row with session context. A session is defined by
+severity-5 events: any two severity-5 days that are no more than seven
+calendar days apart are merged into the same session. Each session
+window then expands three days before the first severity-5 event and
+three days after the last, capturing the pre-escalation and
+post-escalation market movement. Each row carries
+\texttt{session\_id}, \texttt{session\_start}, \texttt{session\_end},
+\texttt{first\_sev5\_date}, \texttt{last\_sev5\_date}, and
+\texttt{session\_length\_days}. Brent and WTI prices are
+forward-filled across non-trading days so every row has an oil price
+regardless of the market calendar. This mart supports the Q1 and Q2
+dashboards by making extreme-conflict episodes directly filterable and
+comparable in Tableau without requiring session logic inside the
+workbook.
 
 The category-impact mart is aggregated one level further. Its grain is
-one row per ticker and top event category, where the category is taken
+one row per stock and top event category, where the category is taken
 from the daily conflict fact's \texttt{top\_event\_category}. It
 stores statistical measures such as observation count, average
-post-event return, average absolute move, maximum drawdown or
-equivalent downside measure, and rank fields used by the Q4 dashboard.
-This design keeps the expensive event-window calculations out of
-Tableau and gives the workbook compact tables optimised for filtering
-and ranking.
+post-event return, average absolute move, and maximum drawdown or
+equivalent downside measure. This design keeps the expensive
+aggregation calculations out of Tableau and gives the workbook compact
+tables optimised for filtering and ranking.
 
 \begin{figure}[H]
   \centering
@@ -1710,8 +1743,8 @@ and ranking.
 
     \node[mart, right=24mm of warehouse.east] (sessions) {\texttt{mart\_conflict\_sessions}\\
       \footnotesize grain: calendar day $\times$ ticker\\
-      \scriptsize session-enriched\\
-      \scriptsize Brent/WTI forward-filled, session flag};
+      \scriptsize sev-5 sessions $\pm$3 days\\
+      \scriptsize Brent/WTI forward-filled};
 
     \node[mart, right=24mm of warehouse.east, yshift=-21mm] (impact) {\texttt{mart\_category\_impact}\\
       \footnotesize grain: top category $\times$ ticker\\
@@ -1740,7 +1773,7 @@ and ranking.
 
   \end{tikzpicture}%
   }
-  \caption{Analytics marts implemented as cross-domain SQL views over warehouse facts. Each mart joins all four source tables. \texttt{mart\_daily\_signals} provides the raw joined time series; \texttt{mart\_conflict\_sessions} adds session-window logic and forward-filled oil prices for visualization; \texttt{mart\_category\_impact} pre-aggregates return statistics by conflict category.}
+  \caption{Analytics marts implemented as cross-domain SQL views over warehouse facts. Each mart joins all four source tables. \texttt{mart\_daily\_signals} provides the raw joined time series; \texttt{mart\_conflict\_sessions} groups severity-5 events within 7-day gaps into sessions with a $\pm$3-day window and forward-filled oil prices; \texttt{mart\_category\_impact} pre-aggregates return statistics by conflict category.}
   \label{fig:analytics_marts}
 \end{figure}
 
@@ -1797,9 +1830,9 @@ stocks interactively for a non-technical analyst audience.
 Geopolitical risk analysts and commodity traders.
 
 \paragraph{Decisions supported.}
-Event-category effect sizes (BI1), subsector reactivity (BI2),
-conflict intensity as volatility indicator (BI3), case-study
-deep-dives (BI4).
+Oil-price behaviour during conflict periods (Q1, BI1), individual
+stock reactivity and divergence across the stock universe (Q2, BI2),
+and identification of the most impactful specific events (Q3, BI3).
 
 \subsection{Theoretical Model}
 \label{sec:theoretical_model}
@@ -1813,52 +1846,106 @@ details-on-demand.
 \subsection{Data Warehouse Visualization (S3)}
 \label{sec:dw_visualization}
 
-The Tableau workbook contains five dashboards: a home overview plus
-one per research question (Q1 event $\to$ oil reaction, Q2 subsector
-divergence, Q3 conflict intensity vs volatility, Q4 event-type ranking).
+The Tableau workbook is built as a single integrated dashboard with
+four linked panels. A Brent price timeline spanning the full analysis
+window occupies the top of the dashboard; conflict sessions are
+highlighted in red, making escalation periods immediately visible
+against the price trend. A drag-to-select action on the timeline
+simultaneously updates the three detail panels: a top-events table
+showing event summaries and severity scores for the selected period;
+a Brent and WTI price chart for the selected scope; and a bar chart
+of log stock returns for each of the fifteen stocks, coloured green
+for positive and red for negative returns. The multi-select filter
+allows the reader to isolate specific stocks for direct comparison.
 
-\begin{figure}[H]\centering
-  \fbox{\parbox{0.9\textwidth}{\centering\textit{Q1 dashboard placeholder.}}}
-  \caption{Q1: event-category reaction distribution.}\label{fig:dash_q1}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/dashboard_overview.PNG}
+  \caption{Full dashboard at rest showing the complete Brent price
+    timeline with conflict sessions highlighted in red. The three
+    detail panels update in response to a drag-to-select action on
+    the timeline.}
+  \label{fig:dash_overview}
 \end{figure}
 
-\begin{figure}[H]\centering
-  \fbox{\parbox{0.9\textwidth}{\centering\textit{Q2 dashboard placeholder.}}}
-  \caption{Q2: rolling cross-ticker correlation heatmap.}\label{fig:dash_q2}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/dashboard_overview_session.PNG}
+  \caption{Dashboard zoomed into a conflict session. All four panels
+    reflect the selected time window: the timeline highlights the
+    active session, the events panel lists the severity-5 events that
+    triggered it, the oil panel shows Brent and WTI price movement,
+    and the stock bar chart shows returns across all stocks during
+    the session.}
+  \label{fig:dash_session}
 \end{figure}
 
-\begin{figure}[H]\centering
-  \fbox{\parbox{0.9\textwidth}{\centering\textit{Q3 dashboard placeholder.}}}
-  \caption{Q3: conflict intensity overlaid on idiosyncratic volatility.}\label{fig:dash_q3}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.65\textwidth]{figures/dashboard_session_events.PNG}
+  \caption{Top-events panel during a conflict session, showing event
+    summary and severity score for each classified event in the
+    selected window.}
+  \label{fig:dash_events}
 \end{figure}
 
-\begin{figure}[H]\centering
-  \fbox{\parbox{0.9\textwidth}{\centering\textit{Q4 dashboard placeholder.}}}
-  \caption{Q4: event-type impact ranking.}\label{fig:dash_q4}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/dashboard_session_stocks.PNG}
+  \caption{Stock return bar chart during a conflict session. Green
+    bars indicate positive log returns, red bars negative. The
+    divergence across stocks is the dashboard's central analytical
+    finding.}
+  \label{fig:dash_stocks}
 \end{figure}
 
 \subsection{Answer to Business Questions}
 \label{sec:bq_answers}
 
-\subsubsection{Q1: Conflict events vs oil price spikes (S2 + S3)}
+\subsubsection{Q1: Oil price behaviour during conflict periods (S2 + S3)}
 \label{sec:answer_q1}
-% TODO S2/S3
-\lipsum[24-25]
 
-\subsubsection{Q2: Subsector synchrony vs divergence (S2)}
+The Brent price timeline in Figure~\ref{fig:dash_overview} shows that
+conflict sessions, highlighted in red, coincide with visible
+deviations in the Brent price trend. Zooming into individual sessions
+(Figure~\ref{fig:dash_session}) confirms that oil prices react within
+the session window, with the magnitude varying across episodes
+depending on the nature and severity of the triggering events.
+Comparing the Brent and WTI series in the bottom-left panel reveals
+that the two benchmarks move closely in tandem during conflict
+periods, with no persistent divergence between them. This is
+consistent with their shared exposure to Middle East supply-risk
+sentiment, despite the two grades having different delivery locations
+and demand bases.
+
+\subsubsection{Q2: Individual stock divergence during conflict periods (S2 + S3)}
 \label{sec:answer_q2}
-% Reassigned from S1 to S2 because S2 owns the Tableau workbook access.
-\lipsum[26-27]
 
-\subsubsection{Q3: Conflict-event intensity vs volatility windows (S3)}
+The most prominent finding of the dashboard is the degree to which
+individual stocks diverge from one another during conflict sessions.
+As shown in Figure~\ref{fig:dash_stocks}, the fifteen stocks produce
+a wide spread of positive and negative returns within the same session
+window, rather than moving as a uniform block. This divergence is not
+random: stocks with direct exposure to shipping and freight benefit
+from the supply-risk premium that conflict introduces, while other
+segments of the energy complex react negatively or remain flat. The
+result challenges a simple ``oil conflict lifts all energy stocks''
+assumption and points to meaningful variation in how different
+business models within the sector translate geopolitical risk into
+market returns.
+
+\subsubsection{Q3: Most impactful individual conflict events (S3)}
 \label{sec:answer_q3}
-% TODO S3
-\lipsum[28-29]
 
-\subsubsection{Q4: Event-type impact ranking (S2 + S3)}
-\label{sec:answer_q4}
-% TODO S2/S3
-\lipsum[30-31]
+The top-events panel (Figure~\ref{fig:dash_events}) identifies which
+specific classified events occurred within each selected session
+window, together with their severity score. Navigating across sessions
+in the dashboard reveals that the largest concurrent oil-price and
+stock-return movements cluster around events in the
+\texttt{military\_conflict} and \texttt{security\_incidents}
+categories. Diplomatic and sanctions events of lower severity are
+visible in the events panel during quieter periods but do not produce
+comparably large price responses in the oil or equity panels.
 
 \newpage
 % ======================================================================
@@ -1876,9 +1963,9 @@ divergence, Q3 conflict intensity vs volatility, Q4 event-type ranking).
 \paragraph{Advantages.}
 The architecture exploits AWS managed services where they are
 strongest. Bronze--silver--gold zones cleanly separate immutable raw
-state from analytics-ready state. The tiered 15-ticker universe is
-the key analytical choice making the Q2 divergence and Q4 Hormuz
-findings possible.
+state from analytics-ready state. The tiered 15-stock universe is
+the key analytical choice making the Q2 stock-divergence finding
+possible.
 
 \paragraph{Disadvantages and trade-offs.}
 The RDS instance is public-endpoint rather than VPC-isolated, which
@@ -1886,7 +1973,7 @@ is a deliberate trade of defence-in-depth for reduced complexity
 given the 6.5-week timeline. Provisioning uses the AWS Console rather
 than Infrastructure-as-Code, which accelerated learning at the cost
 of reproducibility. The analysis window starts 2025-01-01, which
-narrows Q4 event-type diversity. The HSLU sandbox account also
+limits the number of observable conflict sessions. The HSLU sandbox account also
 restricts \texttt{aws glue tag-resource} on Glue \emph{table} ARNs;
 the call returns a bare \texttt{InvalidInputException} with no
 message body, while the same call against database ARNs succeeds.
